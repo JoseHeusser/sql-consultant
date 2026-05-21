@@ -85,13 +85,14 @@ export async function POST(req: NextRequest) {
 
     if (body.mode === 'summary') {
       const preview = JSON.stringify(body.rows.slice(0, 50), null, 2);
+      const langLabel = body.language === 'de' ? 'German (Deutsch)' : 'English';
       const res = await anthropic.messages.create({
         model: MODEL,
         max_tokens: 400,
         system:
           'You are an urban-data analyst helping non-technical readers interpret ' +
-          'results from a SQL query against Berlin\'s tree cadaster. ' +
-          'Reply in clear English. 2–4 sentences max. Cite specific numbers. No preamble.',
+          "results from a SQL query against Berlin's tree cadaster. " +
+          `Reply in ${langLabel}. 2–4 sentences max. Cite specific numbers. No preamble.`,
         messages: [{
           role: 'user',
           content:

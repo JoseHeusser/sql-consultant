@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { I18nProvider } from "@/app/lib/i18n";
 
 export const metadata: Metadata = {
-  title: "SQL Consultant — Berlin commercial real estate · NL → SQL",
-  description: "Ask questions in natural language about a database of 5,000 Berlin commercial properties. AI translates to SQL, runs in your browser, interprets the results.",
+  title: "Berlin Trees · SQL Consultant — NL → PostgreSQL",
+  description: "Ask Berlin's official tree cadaster of 962,000 trees in natural language (English or German). Claude generates PostgreSQL, runs it on Supabase + PostGIS, plots results on a map and interprets them.",
   openGraph: {
-    title: "SQL Consultant — Berlin commercial real estate",
-    description: "Natural-language consultant over a SQLite database, browser-side, with AI interpretation.",
+    title: "Berlin Trees · SQL Consultant",
+    description: "Natural-language consultant over Berlin's tree cadaster.",
     type: "website",
   },
 };
@@ -23,7 +24,9 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <I18nProvider>{children}</I18nProvider>
+      </body>
     </html>
   );
 }

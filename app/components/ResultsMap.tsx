@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import maplibregl, { Map as MapLibreMap, MapMouseEvent } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Row } from '@/app/page';
+import { useI18n } from '@/app/lib/i18n';
 
 type Props = { rows: Row[] };
 
@@ -159,6 +160,7 @@ export default function ResultsMap({ rows }: Props) {
     else map.once('load', drawMarkers);
   }, [rows]);
 
+  const { t } = useI18n();
   const geoRowCount = rows.filter(r => typeof r.lat === 'number' && typeof r.lng === 'number').length;
   if (geoRowCount === 0) return null;
 
@@ -166,7 +168,7 @@ export default function ResultsMap({ rows }: Props) {
     <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] font-mono text-indigo-600 uppercase tracking-wider">
-          / Map ({geoRowCount.toLocaleString()} points · click any for details)
+          {t.mapPoint(geoRowCount)}
         </span>
       </div>
       <div ref={containerRef} className="w-full h-[520px] rounded-lg overflow-hidden border border-slate-200" />

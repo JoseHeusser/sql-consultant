@@ -1,6 +1,7 @@
 'use client';
 
 import { Row } from '@/app/page';
+import { useI18n } from '@/app/lib/i18n';
 
 type Props = {
   columns: string[];
@@ -17,23 +18,17 @@ function fmtCell(v: string | number | null): string {
 }
 
 export default function ResultsTable({ columns, rows }: Props) {
-  if (rows.length === 0) {
-    return (
-      <div className="text-sm text-slate-500 italic">No results.</div>
-    );
-  }
-
+  const { t } = useI18n();
+  if (rows.length === 0) return null;
   const displayRows = rows.slice(0, 100);
-
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] font-mono text-indigo-600 uppercase tracking-wider">
-          / Results
+          {t.resultsLabel}
         </span>
         <span className="text-[11px] text-slate-500">
-          {rows.length.toLocaleString()} row{rows.length === 1 ? '' : 's'}
-          {rows.length > 100 && ' (showing first 100)'}
+          {t.rowsLabel(rows.length)} {rows.length > 100 && t.showingFirst}
         </span>
       </div>
       <div className="overflow-x-auto rounded-lg border border-slate-200">

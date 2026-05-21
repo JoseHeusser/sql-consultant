@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useI18n } from '@/app/lib/i18n';
 
 type Props = { sql: string };
 
 export default function SQLDisplay({ sql }: Props) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
 
   return (
@@ -15,19 +17,18 @@ export default function SQLDisplay({ sql }: Props) {
       >
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-mono text-indigo-600 uppercase tracking-wider">
-            / Generated SQL
+            {t.sqlLabel}
           </span>
           <span className="text-[10px] text-slate-400 font-mono">
-            {sql.split('\n').length} lines · {sql.length} chars
+            {sql.split('\n').length} {t.sqlLines} · {sql.length} {t.sqlChars}
           </span>
         </div>
         <div className="flex items-center gap-3">
           <span
             onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(sql); }}
             className="text-[11px] text-slate-500 hover:text-slate-900 font-medium cursor-pointer"
-            title="Copy SQL"
           >
-            Copy
+            {t.copy}
           </span>
           <svg
             width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
