@@ -28,10 +28,10 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => null) as
-    | { mode: 'sql'; question: string }
-    | { mode: 'fix'; question: string; previousSql: string; error: string }
+    | { mode: 'sql'; question: string; language?: 'en' | 'de' }
+    | { mode: 'fix'; question: string; previousSql: string; error: string; language?: 'en' | 'de' }
     | { mode: 'run'; sql: string }
-    | { mode: 'summary'; question: string; sql: string; rows: unknown[] }
+    | { mode: 'summary'; question: string; sql: string; rows: unknown[]; language?: 'en' | 'de' }
     | null;
 
   if (!body) return NextResponse.json({ error: 'Invalid body.' }, { status: 400 });
