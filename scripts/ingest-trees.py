@@ -81,7 +81,11 @@ def fetch_page(layer: str, start: int, count: int):
 def to_int(v):
     try:
         if v in (None, '', 'null'): return None
-        return int(v)
+        i = int(float(v))  # tolerate "12.0" strings
+        # Postgres INTEGER range
+        if i < -2147483648 or i > 2147483647:
+            return None
+        return i
     except (ValueError, TypeError):
         return None
 
@@ -122,6 +126,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--layer', required=True, choices=['strassenbaeume', 'anlagenbaeume'])
     parser.add_argument('--limit', type=int, default=None, help='Optional cap on rows for testing')
+    parser.add_argument('--start', type=int, default=0, help='Resume from this WFS startIndex')
     args = parser.parse_args()
 
     db_url = os.environ.get('DATABASE_URL')
@@ -151,7 +156,7 @@ def main():
     if not cur.fetchone():
         sys.exit('PostGIS not enabled. Run: CREATE EXTENSION postgis; in Supabase SQL editor.')
 
-    start = 0
+    start = args.start
     total = 0
     t0 = time.time()
     while True:
