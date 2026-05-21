@@ -20,12 +20,23 @@ const BERLIN_BEZIRKE = new Set([
 ]);
 
 function detectChoropleth(rows: Row[], columns: string[]): { bezirkCol: string; valueCol: string } | null {
-  if (rows.length === 0 || rows.length > 20) return null;
+  // If any row has lat+lng, treat this as a row-level (individual tree) result and
+  // render as point map, NOT as choropleth. Choropleth is only for pure aggregates.
+  if (rows.some(r => typeof r.lat === 'number' && typeof r.lng === 'number')) return null;
+
+  // Need at least 2 distinct districts to make a meaningful choropleth
+  if (rows.length < 2 || rows.length > 20) return null;
+
   const bezirkCol = columns.find(c => {
     const vals = rows.map(r => r[c]);
     return vals.length > 0 && vals.every(v => typeof v === 'string' && BERLIN_BEZIRKE.has(v));
   });
   if (!bezirkCol) return null;
+
+  // All rows must reference DIFFERENT districts (otherwise it's not an aggregate per district)
+  const uniqueBezirke = new Set(rows.map(r => r[bezirkCol]));
+  if (uniqueBezirke.size < 2) return null;
+
   const valueCol = columns.find(c => c !== bezirkCol && typeof rows[0][c] === 'number');
   if (!valueCol) return null;
   return { bezirkCol, valueCol };
@@ -159,11 +170,6 @@ export default function Home() {
             <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
               Ask Berlin&apos;s 962,000 trees anything.
             </h2>
-            <p className="text-sm text-slate-600 mt-3 max-w-2xl leading-relaxed">
-              Type a question in plain English. Claude converts it to PostgreSQL, the query runs
-              against Berlin&apos;s official tree cadaster on Supabase, and Claude interprets the
-              result rows. If a query fails, Claude retries up to 3 times automatically.
-            </p>
           </div>
         )}
 
@@ -189,7 +195,14 @@ export default function Home() {
           </div>
         )}
 
-        {/* 1. MAP (first and biggest) — choropleth or point */}
+        {/* 1. SQL at top, collapsed by default */}
+        {sql && (
+          <div className="mt-6">
+            <SQLDisplay sql={sql} />
+          </div>
+        )}
+
+        {/* 2. MAP — choropleth or point */}
         {choropleth && (
           <div className="mt-6">
             <ChoroplethMap rows={rows} bezirkColumn={choropleth.bezirkCol} valueColumn={choropleth.valueCol} />
@@ -208,17 +221,19 @@ export default function Home() {
           </div>
         )}
 
-        {/* 3. Table */}
+        {/* 4. Table */}
         {columns.length > 0 && (
           <div className="mt-6">
             <ResultsTable columns={columns} rows={rows} />
           </div>
         )}
 
-        {/* 4. SQL (collapsed) at the end */}
-        {sql && (
-          <div className="mt-6">
-            <SQLDisplay sql={sql} />
+        {/* Empty state — query ran successfully but returned 0 rows */}
+        {sql && !isWorking && rows.length === 0 && !error && (
+          <div className="mt-6 p-5 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-900">
+            <strong>No results.</strong> The query ran successfully but returned zero rows.
+            Try rephrasing (German street names use ß and umlauts — e.g. <em>Seestraße</em>, <em>Schöneberg</em>)
+            or check the schema using the &ldquo;View schema&rdquo; button.
           </div>
         )}
 

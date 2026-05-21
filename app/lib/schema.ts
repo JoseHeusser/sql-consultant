@@ -42,8 +42,26 @@ Guidelines:
 - Use PostgreSQL/PostGIS syntax (not SQLite). Window functions, CTEs, LATERAL allowed.
 - When the user asks about both street and park trees, UNION ALL the two tables.
 - Default LIMIT 50 unless the user asks for a count or aggregate.
-- Use ILIKE for species/street name matching when the user is approximate.
 - For "near" or "within X metres" use ST_DWithin(geom, ST_MakePoint(lng,lat)::geography, metres).
+
+GERMAN TEXT MATCHING — CRITICAL RULE, FOLLOW EXACTLY:
+
+  The data stores Berlin street names with German characters (ß, ä, ö, ü).
+  Examples in the DB: "Seestraße", "Schöneberg", "Münchener Straße".
+  Users type without these (e.g. "Seestrasse", "Schoeneberg", "Muenchener").
+
+  RULE: For ANY ILIKE on strname, art_dtsch, art_bot, gattung_deutsch, hausnr,
+  you MUST wrap BOTH sides with unaccent(). Plain ILIKE will return 0 rows
+  for users typing without ß/umlauts.
+
+  WRONG (returns 0 rows):
+    WHERE strname ILIKE '%Seestrasse%'
+
+  CORRECT (matches both spellings):
+    WHERE unaccent(strname) ILIKE unaccent('%Seestrasse%')
+
+  Apply this rule to ALL fuzzy text matching on the columns listed above.
+  For bezirk equality (=) use the exact spelling from the district list — no unaccent needed.
 
 MAP RENDERING RULES (very important — the UI auto-renders maps from result shape):
 
@@ -67,15 +85,39 @@ MAP RENDERING RULES (very important — the UI auto-renders maps from result sha
 - Prefer descriptive aliases (AS avg_height, AS tree_count) over t1.col_name.
 - Order results meaningfully (DESC for "biggest/oldest", ASC for "newest planted").
 
+NULL HANDLING — CRITICAL when ordering or extreme-value queries:
+  Many trees in the cadaster have missing measurements (NULL or 0).
+  When the user asks for "oldest", "youngest", "tallest", "biggest", "largest"
+  on pflanzjahr / standalter / baumhoehe / kronedurch / stammumfg, ALWAYS add
+  a NOT NULL + > 0 filter on that column so you don't return data-incomplete rows.
+
+  WRONG (might return tree with pflanzjahr = NULL):
+    ORDER BY pflanzjahr DESC LIMIT 1
+
+  CORRECT:
+    WHERE pflanzjahr IS NOT NULL AND pflanzjahr > 0
+    ORDER BY pflanzjahr DESC LIMIT 1
+
 Source: Senatsverwaltung Berlin via the official WFS service.
 `;
 
 export const EXAMPLE_QUESTIONS = [
-  'Oldest oaks in Mitte (with location)',
-  'Map all trees on Unter den Linden',
+  // Row-level with map (individual trees on map)
+  'Oldest tree in Treptow-Köpenick',
   'Tallest 50 trees in Berlin parks',
+  'Map all trees on Unter den Linden',
   'Linden trees over 100 years old in Kreuzberg',
-  'Top 5 species across all street trees',
+  'Cherry trees (Kirsche) in Pankow with location',
+  'Conifers taller than 25m anywhere in Berlin',
+  // Aggregates by district (choropleth)
+  'Trees per district, street and park combined',
   'Average tree height by district',
-  'Streets with most trees in Mitte',
+  'Average tree age by district for oaks',
+  'How many Linden trees in each Bezirk?',
+  'Average crown diameter by district',
+  // Other aggregates (table only)
+  'Top 10 species across all street trees',
+  'Top 20 streets with most trees in Mitte',
+  'Number of trees planted per decade since 1900',
+  'Most common tree species in Charlottenburg-Wilmersdorf',
 ];
