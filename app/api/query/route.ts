@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null) as
     | { mode: 'sql'; question: string }
+    | { mode: 'fix'; question: string; previousSql: string; error: string }
     | { mode: 'run'; sql: string }
     | { mode: 'summary'; question: string; sql: string; rows: unknown[] }
     | null;
@@ -44,6 +45,29 @@ export async function POST(req: NextRequest) {
           SCHEMA_DESCRIPTION +
           '\n\nRespond with a single SQL query and NOTHING ELSE. No explanation, no markdown fences.',
         messages: [{ role: 'user', content: body.question }],
+      });
+      const text = res.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('');
+      const sql = extractSQL(text);
+      return NextResponse.json({ sql });
+    }
+
+    if (body.mode === 'fix') {
+      const res = await anthropic.messages.create({
+        model: MODEL,
+        max_tokens: 600,
+        system:
+          SCHEMA_DESCRIPTION +
+          '\n\nThe previous SQL query failed. Look at the error message carefully, ' +
+          'understand what went wrong (wrong column name, syntax issue, type mismatch, etc.), ' +
+          'and emit a corrected SQL query. Respond with the corrected SQL ONLY, no explanation.',
+        messages: [{
+          role: 'user',
+          content:
+            `Original question: ${body.question}\n\n` +
+            `Failed SQL:\n${body.previousSql}\n\n` +
+            `Postgres error: ${body.error}\n\n` +
+            `Emit a corrected SQL query that answers the original question.`,
+        }],
       });
       const text = res.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('');
       const sql = extractSQL(text);

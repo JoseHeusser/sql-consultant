@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import maplibregl, { Map as MapLibreMap } from 'maplibre-gl';
+import maplibregl, { Map as MapLibreMap, MapMouseEvent } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Row } from '@/app/page';
 
 type Props = {
   rows: Row[];
-  valueColumn: string;   // numeric column to color by
-  bezirkColumn: string;  // column holding the district name (typically 'bezirk')
+  valueColumn: string;
+  bezirkColumn: string;
 };
 
 const mapStyle: maplibregl.StyleSpecification = {
@@ -32,26 +32,23 @@ const mapStyle: maplibregl.StyleSpecification = {
 
 const STOPS = ['#dbeafe', '#a5b4fc', '#818cf8', '#6366f1', '#3730a3'];
 
-function lerpColor(a: string, b: string, t: number): string {
+function lerp(a: string, b: string, t: number): string {
   const ah = parseInt(a.slice(1), 16);
   const bh = parseInt(b.slice(1), 16);
-  const ar = (ah >> 16) & 0xff, ag = (ah >> 8) & 0xff, ab = ah & 0xff;
-  const br = (bh >> 16) & 0xff, bg = (bh >> 8) & 0xff, bb = bh & 0xff;
-  const r = Math.round(ar + (br - ar) * t);
-  const g = Math.round(ag + (bg - ag) * t);
-  const bl = Math.round(ab + (bb - ab) * t);
+  const r = Math.round(((ah >> 16) & 0xff) + (((bh >> 16) & 0xff) - ((ah >> 16) & 0xff)) * t);
+  const g = Math.round(((ah >> 8) & 0xff) + (((bh >> 8) & 0xff) - ((ah >> 8) & 0xff)) * t);
+  const bl = Math.round((ah & 0xff) + ((bh & 0xff) - (ah & 0xff)) * t);
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${bl.toString(16).padStart(2, '0')}`;
 }
 
-function colorFor(value: number, min: number, max: number): string {
+function color(value: number, min: number, max: number): string {
   if (max === min) return STOPS[2];
   const t = (value - min) / (max - min);
   const i = Math.min(STOPS.length - 2, Math.floor(t * (STOPS.length - 1)));
-  const localT = t * (STOPS.length - 1) - i;
-  return lerpColor(STOPS[i], STOPS[i + 1], localT);
+  return lerp(STOPS[i], STOPS[i + 1], t * (STOPS.length - 1) - i);
 }
 
-function fmtValue(v: number): string {
+function fmt(v: number): string {
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
   if (v >= 10_000) return `${(v / 1_000).toFixed(0)}k`;
   if (v >= 1_000) return `${(v / 1_000).toFixed(1)}k`;
@@ -80,46 +77,40 @@ export default function ChoroplethMap({ rows, valueColumn, bezirkColumn }: Props
     map.on('load', async () => {
       const geojson = await fetch('/data/berlin-bezirke.geojson').then(r => r.json());
 
-      // Build a lookup of bezirk → value
+      // Build value lookup and find row by bezirk for popup content
       const valueByBezirk = new Map<string, number>();
+      const rowByBezirk = new Map<string, Row>();
       for (const r of rows) {
         const k = String(r[bezirkColumn]);
         const v = r[valueColumn];
         if (typeof v === 'number') valueByBezirk.set(k, v);
+        rowByBezirk.set(k, r);
       }
 
       const values = Array.from(valueByBezirk.values());
       const min = Math.min(...values);
       const max = Math.max(...values);
 
-      // Inject the value as a feature property + compute label centroid
       type LabelFeature = {
         type: 'Feature';
         geometry: { type: 'Point'; coordinates: [number, number] };
-        properties: { name: string; value: number; label: string };
+        properties: { name: string; label: string };
       };
       const labelFeatures: LabelFeature[] = [];
       for (const f of geojson.features) {
         const name = f.properties.name as string;
         const v = valueByBezirk.get(name);
+        f.properties.fillColor = v != null ? color(v, min, max) : '#e2e8f0';
         f.properties.value = v ?? null;
-        f.properties.fillColor = v != null ? colorFor(v, min, max) : '#e2e8f0';
-        f.properties.label = v != null ? fmtValue(v) : '';
-
-        // crude centroid of the multipolygon's first ring
         try {
           const polys = f.geometry.type === 'MultiPolygon' ? f.geometry.coordinates : [f.geometry.coordinates];
           let lonSum = 0, latSum = 0, count = 0;
-          for (const poly of polys) {
-            for (const pt of poly[0]) {
-              lonSum += pt[0]; latSum += pt[1]; count++;
-            }
-          }
+          for (const poly of polys) for (const pt of poly[0]) { lonSum += pt[0]; latSum += pt[1]; count++; }
           if (count > 0 && v != null) {
             labelFeatures.push({
               type: 'Feature',
               geometry: { type: 'Point', coordinates: [lonSum / count, latSum / count] },
-              properties: { name, value: v, label: fmtValue(v) },
+              properties: { name, label: fmt(v) },
             });
           }
         } catch { /* noop */ }
@@ -130,10 +121,7 @@ export default function ChoroplethMap({ rows, valueColumn, bezirkColumn }: Props
         id: 'bezirke-fill',
         type: 'fill',
         source: 'bezirke',
-        paint: {
-          'fill-color': ['get', 'fillColor'],
-          'fill-opacity': 0.75,
-        },
+        paint: { 'fill-color': ['get', 'fillColor'], 'fill-opacity': 0.78 },
       });
       map.addLayer({
         id: 'bezirke-outline',
@@ -142,25 +130,40 @@ export default function ChoroplethMap({ rows, valueColumn, bezirkColumn }: Props
         paint: { 'line-color': '#ffffff', 'line-width': 1.5 },
       });
 
-      map.addSource('labels', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: labelFeatures },
+      // Click → popup with district full row
+      map.on('mouseenter', 'bezirke-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', 'bezirke-fill', () => { map.getCanvas().style.cursor = ''; });
+      map.on('click', 'bezirke-fill', (e: MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+        if (!e.features || e.features.length === 0) return;
+        const name = e.features[0].properties?.name as string;
+        const row = rowByBezirk.get(name);
+        const fillRows: string[] = [`<tr><td colspan="2" style="font-weight:700;font-size:13px;color:#0f172a;padding-bottom:4px">${name}</td></tr>`];
+        if (row) {
+          for (const [k, v] of Object.entries(row)) {
+            if (v == null || v === '') continue;
+            fillRows.push(
+              `<tr><td style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;padding-right:8px;vertical-align:top">${k}</td><td style="color:#0f172a;font-weight:500">${v}</td></tr>`
+            );
+          }
+        }
+        new maplibregl.Popup({ closeButton: true, maxWidth: '280px' })
+          .setLngLat(e.lngLat)
+          .setHTML(`<div style="font-family:Inter,Arial,sans-serif;font-size:12px"><table style="border-spacing:0;border-collapse:collapse"><tbody>${fillRows.join('')}</tbody></table></div>`)
+          .addTo(map);
       });
+
+      map.addSource('labels', { type: 'geojson', data: { type: 'FeatureCollection', features: labelFeatures } });
       map.addLayer({
         id: 'bezirke-labels',
         type: 'symbol',
         source: 'labels',
         layout: {
           'text-field': ['get', 'label'],
-          'text-size': 14,
+          'text-size': 16,
           'text-font': ['Noto Sans Regular'],
           'text-allow-overlap': true,
         },
-        paint: {
-          'text-color': '#0f172a',
-          'text-halo-color': '#ffffff',
-          'text-halo-width': 2.5,
-        },
+        paint: { 'text-color': '#0f172a', 'text-halo-color': '#ffffff', 'text-halo-width': 2.5 },
       });
       map.addLayer({
         id: 'bezirke-names',
@@ -174,11 +177,7 @@ export default function ChoroplethMap({ rows, valueColumn, bezirkColumn }: Props
           'text-offset': [0, 0.8],
           'text-allow-overlap': false,
         },
-        paint: {
-          'text-color': '#475569',
-          'text-halo-color': '#ffffff',
-          'text-halo-width': 2,
-        },
+        paint: { 'text-color': '#475569', 'text-halo-color': '#ffffff', 'text-halo-width': 2 },
       });
     });
 
@@ -190,10 +189,10 @@ export default function ChoroplethMap({ rows, valueColumn, bezirkColumn }: Props
     <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] font-mono text-indigo-600 uppercase tracking-wider">
-          / Choropleth — {valueColumn} by district
+          / Choropleth — {valueColumn} by district · click for details
         </span>
       </div>
-      <div ref={containerRef} className="w-full h-96 rounded-lg overflow-hidden border border-slate-200" />
+      <div ref={containerRef} className="w-full h-[520px] rounded-lg overflow-hidden border border-slate-200" />
     </div>
   );
 }
