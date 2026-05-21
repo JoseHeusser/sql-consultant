@@ -2,7 +2,7 @@
 
 Ask questions in natural language about a database of 5,000 commercial properties in Berlin. Claude generates the SQL, your browser runs it locally against an embedded SQLite database, and Claude interprets the results in plain English.
 
-> 🔗 **Live:** _[add deployment URL]_
+> 🔗 **Live:** <https://sql-consultant.vercel.app>
 
 ## What it does
 
