@@ -52,11 +52,11 @@ Source: Senatsverwaltung Berlin via the official WFS service.
 `;
 
 export const EXAMPLE_QUESTIONS = [
-  'Top 10 oldest oak trees in Mitte',
-  'Average tree height by district for trees planted after 2000',
+  'Top 5 species across all street trees',
+  'Oldest oaks in Mitte',
   'Streets with most Linden trees in Friedrichshain-Kreuzberg',
-  'Tallest trees in Berlin parks',
-  'How many trees per square km in each district?',
-  'Distribution of species in Mitte',
-  'Map all trees on Unter den Linden street',
+  'Average tree height by district',
+  'Trees per district, street and park combined',
+  'Tallest 20 trees in Berlin parks',
+  'Map all oak trees on Unter den Linden',
 ];

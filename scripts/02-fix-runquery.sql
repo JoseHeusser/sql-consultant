@@ -10,7 +10,8 @@ DECLARE
   trimmed TEXT;
   final_query TEXT;
 BEGIN
-  trimmed := lower(btrim(query_text));
+  -- btrim with explicit whitespace chars (default doesn't strip newlines/tabs)
+  trimmed := lower(btrim(query_text, E' \t\n\r'));
   IF NOT (trimmed LIKE 'select%' OR trimmed LIKE 'with%') THEN
     RAISE EXCEPTION 'Only SELECT/WITH queries are allowed.';
   END IF;
