@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import maplibregl, { Map as MapLibreMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Row } from '@/app/lib/db';
+import { Row } from '@/app/page';
 
 type Props = {
   rows: Row[];

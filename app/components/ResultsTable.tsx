@@ -1,6 +1,6 @@
 'use client';
 
-import { Row } from '@/app/lib/db';
+import { Row } from '@/app/page';
 
 type Props = {
   columns: string[];
