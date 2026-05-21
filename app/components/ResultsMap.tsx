@@ -42,19 +42,59 @@ function popupHtml(props: Record<string, unknown>): string {
 export default function ResultsMap({ rows }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const initialized = useRef(false);
 
   useEffect(() => {
-    if (!containerRef.current) return;
-    if (!mapRef.current) {
-      mapRef.current = new maplibregl.Map({
-        container: containerRef.current,
-        style: mapStyle,
-        center: [13.4050, 52.5200],
-        zoom: 10,
-        attributionControl: { compact: true },
-      });
-      mapRef.current.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
-    }
+    if (!containerRef.current || initialized.current) return;
+    initialized.current = true;
+
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: mapStyle,
+      center: [13.4050, 52.5200],
+      zoom: 10,
+      attributionControl: { compact: true },
+    });
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+
+    map.on('load', async () => {
+      // Always-on Berlin districts background layer (subtle gray)
+      try {
+        const districts = await fetch('/data/berlin-bezirke.geojson').then(r => r.json());
+        map.addSource('bezirke-bg', { type: 'geojson', data: districts });
+        map.addLayer({
+          id: 'bezirke-bg-fill',
+          type: 'fill',
+          source: 'bezirke-bg',
+          paint: { 'fill-color': '#94a3b8', 'fill-opacity': 0.07 },
+        });
+        map.addLayer({
+          id: 'bezirke-bg-outline',
+          type: 'line',
+          source: 'bezirke-bg',
+          paint: { 'line-color': '#64748b', 'line-width': 1, 'line-opacity': 0.35 },
+        });
+        map.addLayer({
+          id: 'bezirke-bg-labels',
+          type: 'symbol',
+          source: 'bezirke-bg',
+          layout: {
+            'text-field': ['get', 'name'],
+            'text-size': 10,
+            'text-font': ['Noto Sans Regular'],
+            'text-allow-overlap': false,
+          },
+          paint: {
+            'text-color': '#475569',
+            'text-halo-color': 'rgba(255,255,255,0.9)',
+            'text-halo-width': 2,
+            'text-opacity': 0.6,
+          },
+        });
+      } catch { /* if geojson missing, just skip the overlay */ }
+    });
+
+    mapRef.current = map;
   }, []);
 
   useEffect(() => {
@@ -84,17 +124,15 @@ export default function ResultsMap({ rows }: Props) {
           paint: {
             'circle-radius': 6,
             'circle-color': '#6366f1',
-            'circle-opacity': 0.75,
+            'circle-opacity': 0.8,
             'circle-stroke-width': 1.5,
             'circle-stroke-color': '#ffffff',
           },
         });
 
-        // Hover cursor
         map.on('mouseenter', 'results-circles', () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', 'results-circles', () => { map.getCanvas().style.cursor = ''; });
 
-        // Click → popup with row properties
         map.on('click', 'results-circles', (e: MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
           if (!e.features || e.features.length === 0) return;
           const f = e.features[0];
@@ -107,7 +145,6 @@ export default function ResultsMap({ rows }: Props) {
         });
       }
 
-      // Fit bounds
       if (features.length) {
         const lats = features.map(f => f.geometry.coordinates[1]);
         const lngs = features.map(f => f.geometry.coordinates[0]);
