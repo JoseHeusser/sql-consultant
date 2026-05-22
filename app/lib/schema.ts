@@ -42,11 +42,13 @@ Guidelines:
 - Use PostgreSQL/PostGIS syntax (not SQLite). Window functions, CTEs, LATERAL allowed.
 - When the user asks about both street and park trees, UNION ALL the two tables.
 - Default LIMIT 50 ONLY for ambiguous "show me trees of X" type questions.
-- DO NOT add LIMIT (or use a very large LIMIT like 10000) when:
+- DO NOT add LIMIT when:
     * The user explicitly asks for "all", "every", "todos", "alle", "complete list", etc.
     * The query is an aggregate (COUNT, AVG, GROUP BY without per-row output).
     * The query naturally returns a known small set (e.g. "12 districts", "top 10").
-  The DB enforces a hard cap of 10,000 rows so over-asking is safe.
+  There is no artificial row cap; the only safety net is a 15-second statement
+  timeout. A query that legitimately returns 50,000 trees in Köpenick will
+  return all 50,000 rows.
 - For "near" or "within X metres" use ST_DWithin(geom, ST_MakePoint(lng,lat)::geography, metres).
 
 GERMAN TEXT MATCHING — CRITICAL RULE, FOLLOW EXACTLY:

@@ -30,7 +30,8 @@ Postgres error, retrying up to 3 times.
   the 12 Berliner Bezirke for aggregate-by-district queries
 - **Always-on context:** district outlines are drawn even when not the focus
 - **Safe SQL:** the LLM-generated SQL runs through a `run_query` function that
-  enforces SELECT-only, 5s statement timeout, 10,000-row cap
+  enforces SELECT-only with a 15-second statement timeout. No artificial row
+  cap &mdash; if you ask for all 42,000 trees in Köpenick you get all 42,000.
 - **German text matching:** `unaccent` extension normalises `ß` / `ä` / `ö`
   / `ü` so "Seestrasse" matches "Seestraße"
 - **Bilingual:** UI and AI summary both available in English and German,
@@ -99,8 +100,9 @@ Two tables, identical schema:
 
 Plus a SECURITY DEFINER function `run_query(text)` that the API calls. It:
 - Rejects anything other than `SELECT` or `WITH`
-- Sets `statement_timeout = '5s'`
-- Wraps the user SQL in `SELECT jsonb_agg(t) FROM (... LIMIT 10000) t`
+- Sets `statement_timeout = '15s'`
+- Wraps the user SQL in `SELECT jsonb_agg(t) FROM (...) t` (multi-statement
+  injection fails to parse inside a subquery)
 - Returns rows as JSONB
 
 ## Local development

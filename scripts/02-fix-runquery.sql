@@ -1,28 +1,33 @@
+-- Safe SQL executor for the SQL Consultant API.
+--
+-- Design:
+--   * Only accepts queries starting with SELECT or WITH (whitespace/case insensitive).
+--   * Wraps the user query in `SELECT jsonb_agg(t) FROM (<sql>) t` so any attempt
+--     to escape via multiple statements fails parsing.
+--   * Statement timeout (15s) is the only safety net against runaway queries.
+--     No artificial row cap — if the dataset honestly has 962k matching rows,
+--     return them. Display layers (map / table / summary) decide their own limits.
+--   * SECURITY DEFINER so the API can call this with the service_role key
+--     without exposing data-mutating capabilities to clients.
+
 CREATE OR REPLACE FUNCTION public.run_query(query_text TEXT)
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-SET statement_timeout = '5s'
+SET statement_timeout = '15s'
 AS $func$
 DECLARE
   result JSONB;
   trimmed TEXT;
   final_query TEXT;
 BEGIN
-  -- btrim with explicit whitespace chars (default doesn't strip newlines/tabs)
   trimmed := lower(btrim(query_text, E' \t\n\r'));
   IF NOT (trimmed LIKE 'select%' OR trimmed LIKE 'with%') THEN
     RAISE EXCEPTION 'Only SELECT/WITH queries are allowed.';
   END IF;
 
-  -- Strip trailing semicolon
   final_query := regexp_replace(query_text, ';\s*$', '');
-
-  -- Append LIMIT 10000 only if the query doesn't already have a LIMIT
-  IF lower(final_query) !~ 'limit\s+[0-9]+\s*$' THEN
-    final_query := final_query || ' LIMIT 10000';
-  END IF;
 
   EXECUTE 'SELECT COALESCE(jsonb_agg(t), ''[]''::jsonb) FROM (' || final_query || ') t'
   INTO result;
