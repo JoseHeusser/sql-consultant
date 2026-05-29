@@ -147,6 +147,9 @@ export default function Home() {
           <div className="flex items-center gap-2 flex-wrap">
             <LanguageToggle />
             <SchemaViewer />
+            <a href="/evals" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-amber-50 border-amber-200 text-amber-700 text-xs hover:bg-amber-100 transition-colors">
+              Evals 100%
+            </a>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-700 text-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
               {t.treeCount}
@@ -227,6 +230,8 @@ export default function Home() {
             {t.footerData}: <a href="https://daten.berlin.de/datensaetze/baumbestand-berlin-wms" className="underline">Berlin Baumbestand</a> · {t.footerCredit}
           </p>
           <div className="flex gap-4">
+            <a href="/evals" className="hover:text-slate-900">Eval suite</a>
+            <a href="https://github.com/JoseHeusser/berlin-trees-mcp" target="_blank" className="hover:text-slate-900">MCP server</a>
             <a href="https://github.com/JoseHeusser/sql-consultant" target="_blank" className="hover:text-slate-900">{t.footerGithub}</a>
             <a href="https://joseheusser.vercel.app" target="_blank" className="hover:text-slate-900">{t.footerPortfolio}</a>
           </div>
