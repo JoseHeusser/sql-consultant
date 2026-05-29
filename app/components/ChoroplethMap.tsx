@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import maplibregl, { Map as MapLibreMap, MapMouseEvent } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Row } from '@/app/page';
@@ -61,19 +61,28 @@ export default function ChoroplethMap({ rows, valueColumn, bezirkColumn }: Props
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const initialized = useRef(false);
+  const [glUnavailable, setGlUnavailable] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current || initialized.current) return;
     initialized.current = true;
 
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: mapStyle,
-      bounds: [[13.085, 52.34], [13.770, 52.68]],
-      fitBoundsOptions: { padding: 30 },
-      attributionControl: { compact: true },
-    });
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+    let map: MapLibreMap;
+    try {
+      map = new maplibregl.Map({
+        container: containerRef.current,
+        style: mapStyle,
+        bounds: [[13.085, 52.34], [13.770, 52.68]],
+        fitBoundsOptions: { padding: 30 },
+        attributionControl: { compact: true },
+      });
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+    } catch {
+      // WebGL may be unavailable on some mobile devices / privacy browsers.
+      initialized.current = false;
+      setGlUnavailable(true);
+      return;
+    }
 
     map.on('load', async () => {
       const geojson = await fetch('/data/berlin-bezirke.geojson').then(r => r.json());
@@ -194,7 +203,14 @@ export default function ChoroplethMap({ rows, valueColumn, bezirkColumn }: Props
           {t.mapChoropleth(valueColumn)}
         </span>
       </div>
-      <div ref={containerRef} className="w-full h-[520px] rounded-lg overflow-hidden border border-slate-200" />
+      <div className="relative w-full h-[520px] rounded-lg overflow-hidden border border-slate-200">
+        <div ref={containerRef} className="w-full h-full" />
+        {glUnavailable && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-50 p-6 text-center">
+            <p className="max-w-xs text-sm text-slate-500">{t.mapUnavailable}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

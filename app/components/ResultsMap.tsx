@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import maplibregl, { Map as MapLibreMap, MapMouseEvent } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Row } from '@/app/page';
@@ -44,20 +44,26 @@ export default function ResultsMap({ rows }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const layersAdded = useRef(false);
+  const [glUnavailable, setGlUnavailable] = useState(false);
   const { t } = useI18n();
 
   // init map once
   useEffect(() => {
     if (!containerRef.current) return;
     if (!mapRef.current) {
-      mapRef.current = new maplibregl.Map({
-        container: containerRef.current,
-        style: mapStyle,
-        center: [13.4050, 52.5200],
-        zoom: 10,
-        attributionControl: { compact: true },
-      });
-      mapRef.current.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+      try {
+        mapRef.current = new maplibregl.Map({
+          container: containerRef.current,
+          style: mapStyle,
+          center: [13.4050, 52.5200],
+          zoom: 10,
+          attributionControl: { compact: true },
+        });
+        mapRef.current.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+      } catch {
+        // WebGL may be unavailable on some mobile devices / privacy browsers.
+        setGlUnavailable(true);
+      }
     }
   }, []);
 
@@ -220,7 +226,14 @@ export default function ResultsMap({ rows }: Props) {
           {t.mapPoint(geoRowCount)}
         </span>
       </div>
-      <div ref={containerRef} className="w-full h-[520px] rounded-lg overflow-hidden border border-slate-200" />
+      <div className="relative w-full h-[520px] rounded-lg overflow-hidden border border-slate-200">
+        <div ref={containerRef} className="w-full h-full" />
+        {glUnavailable && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-50 p-6 text-center">
+            <p className="max-w-xs text-sm text-slate-500">{t.mapUnavailable}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

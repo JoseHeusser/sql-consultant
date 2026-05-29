@@ -51,6 +51,35 @@ Guidelines:
   return all 50,000 rows.
 - For "near" or "within X metres" use ST_DWithin(geom, ST_MakePoint(lng,lat)::geography, metres).
 
+UNION, ORDER BY & COLUMN RULES — CRITICAL, FOLLOW EXACTLY:
+
+  1. ANY ranked query (ORDER BY and/or LIMIT) that spans BOTH street_trees and
+     park_trees MUST union the tables inside a subquery FIRST, then ORDER BY /
+     LIMIT once on the outside. This applies to single-row ("oldest"), top-N
+     ("thickest 50"), and every ranked cross-table query — no exceptions:
+        SELECT * FROM (
+          SELECT <cols, NO geom> FROM street_trees WHERE ...
+          UNION ALL
+          SELECT <cols, NO geom> FROM park_trees WHERE ...
+        ) t
+        WHERE <not-null guard>
+        ORDER BY stammumfg DESC
+        LIMIT 50;
+     NEVER put ORDER BY/LIMIT on the individual branches of a UNION ALL. A bare
+     "SELECT ... ORDER BY ... LIMIT n UNION ALL SELECT ... ORDER BY ... LIMIT n"
+     is a SYNTAX ERROR in Postgres. If for some reason you must order a single
+     branch, wrap that branch in parentheses: (SELECT ... ORDER BY x LIMIT n).
+
+  2. NEVER select the geom column in row-level output. It is a heavy PostGIS
+     geometry; returning it for thousands of rows causes a 15s statement timeout.
+     Use lat and lng for coordinates. geom is ONLY for ST_* functions inside WHERE/ORDER BY
+     expressions — never in the SELECT list.
+
+  3. In an ORDER BY applied to a UNION result, only reference columns present in
+     the combined SELECT list. For distance ordering across a UNION, SELECT
+     ST_Distance(geom, ST_MakePoint(lng,lat)::geography) AS dist inside each branch
+     and ORDER BY dist on the outside (do not reference geom in the outer ORDER BY).
+
 GERMAN TEXT MATCHING — CRITICAL RULE, FOLLOW EXACTLY:
 
   The data stores Berlin street names with German characters (ß, ä, ö, ü).
